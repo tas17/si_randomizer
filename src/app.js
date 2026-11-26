@@ -5,6 +5,7 @@ import {
 import {
   adversaryById, availableAspects, defaultConfig, mergeConfig, roll, RollError, scenarioById, spiritById,
 } from "./engine.js";
+import { adversaryIcon, scenarioIcon, spiritIcon } from "./icons.js";
 import { launchUrls } from "./launchUrl.js";
 import {
   deletePreference, loadPreference, preferenceNames, readStore, renamePreference, sameConfig, savePreference,
@@ -221,6 +222,25 @@ function lockButton(isLocked, toggle) {
   }, isLocked ? "Locked" : "Lock");
 }
 
+const missingImages = new Set();
+
+function icon(kind, item, svgMarkup) {
+  const wrap = h("span", { class: `icon-wrap ${kind}` });
+  const src = `images/${kind}/${item.id}.png`;
+  if (missingImages.has(src)) {
+    wrap.innerHTML = svgMarkup;
+    return wrap;
+  }
+  wrap.append(h("img", {
+    class: "photo", src, alt: item.name, title: item.name,
+    onerror: () => {
+      missingImages.add(src);
+      wrap.innerHTML = svgMarkup;
+    },
+  }));
+  return wrap;
+}
+
 function levelText(level) {
   return level === 0 ? "base level" : `level ${level}`;
 }
@@ -242,6 +262,7 @@ function renderResult() {
     rows.push(h("div", { class: "row" },
       h("span", { class: "label" }, `Player ${i + 1} · board ${result.boards[i]}`),
       h("span", { class: "value" },
+        icon("spirits", spirit, spiritIcon(spirit)),
         h("strong", {}, spirit.name),
         aspect && h("span", { class: "tag" }, `Aspect: ${aspect.name}`),
         slot.progression && h("span", { class: "tag" }, "Power Progression"),
@@ -264,7 +285,7 @@ function renderResult() {
   rows.push(h("div", { class: "row" },
     h("span", { class: "label" }, "Adversary"),
     h("span", { class: "value" }, adv
-      ? [h("strong", {}, adv.name), ` – ${levelText(result.adversary.level)}`,
+      ? [icon("adversaries", adv, adversaryIcon(adv)), h("strong", {}, adv.name), ` – ${levelText(result.adversary.level)}`,
         h("span", { class: "tag" }, `difficulty ${adv.difficulty[result.adversary.level]}`)]
       : "None"),
     lockButton(!!locks.adversary, () => { locks.adversary = !locks.adversary; })));
@@ -273,7 +294,7 @@ function renderResult() {
   rows.push(h("div", { class: "row" },
     h("span", { class: "label" }, "Supporting"),
     h("span", { class: "value" }, sup
-      ? [h("strong", {}, sup.name), ` – ${levelText(result.support.level)}`,
+      ? [icon("adversaries", sup, adversaryIcon(sup)), h("strong", {}, sup.name), ` – ${levelText(result.support.level)}`,
         h("span", { class: "tag" }, `difficulty ${sup.difficulty[result.support.level]}`)]
       : "None"),
     lockButton(!!locks.support, () => { locks.support = !locks.support; })));
@@ -282,7 +303,7 @@ function renderResult() {
   rows.push(h("div", { class: "row" },
     h("span", { class: "label" }, "Scenario"),
     h("span", { class: "value" }, scen
-      ? [h("strong", {}, scen.name), h("span", { class: "tag" }, `difficulty ${scen.difficulty}`)]
+      ? [icon("scenarios", scen, scenarioIcon(scen)), h("strong", {}, scen.name), h("span", { class: "tag" }, `difficulty ${scen.difficulty}`)]
       : "None"),
     lockButton(!!locks.scenario, () => { locks.scenario = !locks.scenario; })));
 
