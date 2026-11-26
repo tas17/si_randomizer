@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spirit Island Randomizer</title>
+  <link rel="stylesheet" href="styles.css">
+  <script type="module" src="src/app.js"></script>
+</head>
+<body>
+  <header class="top">
+    <h1>Spirit Island Randomizer</h1>
+    <p class="sub">Roll a setup, then launch it in Spirit Island Digital.</p>
+  </header>
+  <main>
+    <section class="card result" aria-live="polite">
+      <div class="roll-bar">
+        <button id="roll" class="primary" type="button">Roll setup</button>
+        <span class="hint">Lock an item to keep it on the next roll.</span>
+      </div>
+      <div id="result"></div>
+    </section>
+    <section id="settings" aria-label="Settings"></section>
+  </main>
+  <footer>
+    URL format from the
+    <a href="https://www.handelabra.com/spirit-island-launch-url-specification">Handelabra launch URL specification</a>.
+    Unofficial fan tool.
+  </footer>
+</body>
+</html>
