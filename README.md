@@ -7,13 +7,17 @@ Launch URL format: <https://www.handelabra.com/spirit-island-launch-url-specific
 
 ## Run
 
-The page uses ES modules, so serve it over HTTP (opening `index.html` as a file does not work):
+Start the small Node server (no dependencies). It serves the page and saves preferences:
 
 ```bash
 npm run serve
 ```
 
 Then open <http://localhost:8000>.
+
+Preferences are saved in `data/preferences.json` (not in git), so every browser on this computer shares them.
+Without this server (for example on GitHub Pages), the page saves preferences in the browser only.
+Use `PORT=9000 npm run serve` for another port.
 
 ## Test
 
@@ -42,9 +46,11 @@ The images come from the Spirit Island Wiki, which blocks scripts (Cloudflare). 
 - `src/data.js` – spirits, aspects, adversaries (difficulty per level), scenarios, boards, layouts.
 - `src/engine.js` – the randomizer (pure, the random source is injectable).
 - `src/launchUrl.js` – builds the launch URLs and the board layout side pairs.
+- `server.mjs` – serves the page and the `/api/preferences` file storage.
 - `src/preferences.js` – named preferences (saved settings) and the default preference.
+- `src/preferenceStore.js` – uses the server when it runs, else browser storage.
 - `src/icons.js` – drawn fallback icons for spirits, adversaries and scenarios.
-- `src/app.js` – the user interface. Settings and preferences are kept in `localStorage`, so they stay in one browser.
+- `src/app.js` – the user interface. The current settings are kept in `localStorage`.
 
 ## Data sources
 

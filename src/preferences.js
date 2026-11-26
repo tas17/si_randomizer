@@ -8,12 +8,21 @@ export function emptyStore() {
   return { preferences: {}, defaultName: null };
 }
 
+const isPlainObject = (value) => !!value && typeof value === "object" && !Array.isArray(value);
+
+export function sanitizeStore(raw) {
+  if (!isPlainObject(raw) || !isPlainObject(raw.preferences)) return emptyStore();
+  const preferences = {};
+  for (const [name, config] of Object.entries(raw.preferences)) {
+    if (name.trim() && isPlainObject(config)) preferences[name] = config;
+  }
+  const defaultName = typeof raw.defaultName === "string" && preferences[raw.defaultName] ? raw.defaultName : null;
+  return { preferences, defaultName };
+}
+
 export function readStore(storage) {
   try {
-    const raw = JSON.parse(storage.getItem(PREFERENCES_KEY));
-    if (!raw || typeof raw !== "object" || typeof raw.preferences !== "object") return emptyStore();
-    const defaultName = raw.preferences[raw.defaultName] ? raw.defaultName : null;
-    return { preferences: raw.preferences, defaultName };
+    return sanitizeStore(JSON.parse(storage.getItem(PREFERENCES_KEY)));
   } catch {
     return emptyStore();
   }

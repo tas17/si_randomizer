@@ -1,6 +1,6 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "si-randomizer", "runtimeExecutable": "python3", "runtimeArgs": ["-m", "http.server", "8000"], "port": 8000 }
+    { "name": "si-randomizer", "runtimeExecutable": "node", "runtimeArgs": ["server.mjs"], "port": 8000 }
   ]
 }

@@ -7,9 +7,10 @@ import {
 } from "./engine.js";
 import { adversaryIcon, scenarioIcon, spiritIcon } from "./icons.js";
 import { launchUrls } from "./launchUrl.js";
+import { openPreferenceStore } from "./preferenceStore.js";
 import {
-  deletePreference, loadPreference, preferenceNames, readStore, renamePreference, sameConfig, savePreference,
-  setDefaultPreference, writeStore,
+  deletePreference, loadPreference, preferenceNames, renamePreference, sameConfig, savePreference,
+  setDefaultPreference,
 } from "./preferences.js";
 
 const STORAGE_KEY = "si-randomizer-config-v1";
@@ -17,9 +18,11 @@ const ACTIVE_KEY = "si-randomizer-active-preference-v1";
 const STATUS_CYCLE = { allow: "force", force: "ban", ban: "allow" };
 const STATUS_LABEL = { allow: "Random", force: "Always", ban: "Never" };
 
-let store = readStore(safeStorage());
+let backend = null;
+let store = { preferences: {}, defaultName: null };
 let activeName = null;
-let config = loadConfig();
+let config = defaultConfig();
+let saving = false;
 let result = null;
 let error = null;
 let locks = { spirits: [] };
@@ -84,12 +87,23 @@ function changed({ rerender = false } = {}) {
 
 const hasUnsavedChanges = () => !!activeName && !sameConfig(config, store.preferences[activeName]);
 
-function commitStore(next, message) {
-  if (!writeStore(safeStorage(), next)) {
-    preferenceMessage = { error: true, text: "Your browser does not allow saving here (private window or blocked storage)." };
-  } else {
+async function commitStore(next, message, nextActive = activeName) {
+  if (saving) return;
+  saving = true;
+  renderPreferences();
+  const ok = await backend.save(next);
+  saving = false;
+  if (ok) {
     store = next;
+    activeName = nextActive;
     preferenceMessage = message ? { error: false, text: message } : null;
+  } else {
+    preferenceMessage = {
+      error: true,
+      text: backend.mode === "server"
+        ? "Could not save to the preferences file. Is the server (npm run serve) still running?"
+        : "Your browser does not allow saving here (private window or blocked storage).",
+    };
   }
   saveConfig();
   renderPreferences();
@@ -123,9 +137,8 @@ function saveAsNew(input) {
     if (!name) throw new Error("Type a name for the preference.");
     if (store.preferences[name] && !confirm(`Replace the preference "${name}"?`)) return;
     const next = savePreference(store, name, config);
-    activeName = name;
     input.value = "";
-    commitStore(next, `Saved "${name}".`);
+    commitStore(next, `Saved "${name}".`, name);
   });
 }
 
@@ -149,41 +162,41 @@ function preferencesPanel() {
         h("option", { value: "", selected: !activeName }, names.length ? "— No preference —" : "— No saved preferences —"),
         names.map((n) => h("option", { value: n, selected: n === activeName }, n === store.defaultName ? `★ ${n}` : n))),
       h("button", {
-        type: "button", disabled: !activeName || !unsaved,
+        type: "button", disabled: saving || !activeName || !unsaved,
         onclick: () => guard(() => commitStore(savePreference(store, activeName, config), `Saved "${activeName}".`)),
       }, "Save"),
       h("button", {
-        type: "button", disabled: !activeName,
+        type: "button", disabled: saving || !activeName,
         onclick: () => guard(() => commitStore(
           setDefaultPreference(store, isDefault ? null : activeName),
           isDefault ? "No default preference." : `"${activeName}" opens by default.`,
         )),
       }, isDefault ? "Remove default" : "Set as default"),
       h("button", {
-        type: "button", disabled: !activeName,
+        type: "button", disabled: saving || !activeName,
         onclick: () => guard(() => {
           const to = prompt("New name", activeName);
           if (to === null || to.trim() === activeName) return;
           const next = renamePreference(store, activeName, to);
-          activeName = to.trim();
-          commitStore(next, `Renamed to "${activeName}".`);
+          commitStore(next, `Renamed to "${to.trim()}".`, to.trim());
         }),
       }, "Rename"),
       h("button", {
-        type: "button", class: "danger", disabled: !activeName,
+        type: "button", class: "danger", disabled: saving || !activeName,
         onclick: () => {
           if (!confirm(`Delete the preference "${activeName}"?`)) return;
-          const name = activeName;
-          activeName = null;
-          commitStore(deletePreference(store, name), `Deleted "${name}".`);
+          commitStore(deletePreference(store, activeName), `Deleted "${activeName}".`, null);
         },
       }, "Delete")),
     h("div", { class: "inline", style: "margin-top:8px" },
       nameInput,
-      h("button", { type: "button", onclick: () => saveAsNew(nameInput) }, "Save current settings as new")),
+      h("button", { type: "button", disabled: saving, onclick: () => saveAsNew(nameInput) }, "Save current settings as new")),
     preferenceMessage && h("div", { class: preferenceMessage.error ? "error" : "muted", style: "margin-top:8px" }, preferenceMessage.text),
     h("p", { class: "muted", style: "margin-bottom:0" },
-      "A preference stores all the settings below. The default preference (★) loads when the page opens."));
+      "A preference stores all the settings below. The default preference (★) loads when the page opens. ",
+      backend?.mode === "server"
+        ? "Saved in data/preferences.json on this computer."
+        : "Saved in this browser only: start the page with npm run serve to save them in a file."));
 }
 
 function renderPreferences() {
@@ -547,6 +560,12 @@ function renderSettings() {
 }
 
 document.getElementById("roll").addEventListener("click", doRoll);
+backend = await openPreferenceStore({ storage: safeStorage() });
+store = backend.store;
+config = loadConfig();
+if (backend.imported) {
+  preferenceMessage = { error: false, text: `Moved ${backend.imported} preference(s) from this browser to data/preferences.json.` };
+}
 renderSettings();
 renderPreferences();
 renderResult();
