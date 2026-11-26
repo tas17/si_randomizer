@@ -118,6 +118,11 @@ details.card[open] > summary { margin-bottom: 12px; }
 .field > span { color: var(--muted); font-size: 0.85rem; }
 .inline { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 label.check { display: flex; gap: 8px; align-items: center; }
+.prefs-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; margin-bottom: 10px; }
+.prefs select { min-width: 12rem; max-width: 100%; }
+input.text { flex: 1 1 12rem; min-width: 0; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
+button:disabled { opacity: 0.45; cursor: default; }
+button.danger:not(:disabled) { color: var(--ban); border-color: var(--ban); }
 input[type="number"] { width: 4.5rem; padding: 4px 6px; border: 1px solid var(--line); border-radius: 6px; background: var(--card); }
 input[type="range"] { width: 100%; max-width: 280px; accent-color: var(--accent); }
 input[type="checkbox"] { accent-color: var(--accent); }

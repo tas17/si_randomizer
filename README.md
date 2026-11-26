@@ -26,7 +26,8 @@ npm test
 - `src/data.js` – spirits, aspects, adversaries (difficulty per level), scenarios, boards, layouts.
 - `src/engine.js` – the randomizer (pure, the random source is injectable).
 - `src/launchUrl.js` – builds the launch URLs and the board layout side pairs.
-- `src/app.js` – the user interface. Settings are kept in `localStorage`.
+- `src/preferences.js` – named preferences (saved settings) and the default preference.
+- `src/app.js` – the user interface. Settings and preferences are kept in `localStorage`, so they stay in one browser.
 
 ## Data sources
 

@@ -6,19 +6,41 @@ import {
   adversaryById, availableAspects, defaultConfig, mergeConfig, roll, RollError, scenarioById, spiritById,
 } from "./engine.js";
 import { launchUrls } from "./launchUrl.js";
+import {
+  deletePreference, loadPreference, preferenceNames, readStore, renamePreference, sameConfig, savePreference,
+  setDefaultPreference, writeStore,
+} from "./preferences.js";
 
 const STORAGE_KEY = "si-randomizer-config-v1";
+const ACTIVE_KEY = "si-randomizer-active-preference-v1";
 const STATUS_CYCLE = { allow: "force", force: "ban", ban: "allow" };
 const STATUS_LABEL = { allow: "Random", force: "Always", ban: "Never" };
 
+let store = readStore(safeStorage());
+let activeName = null;
 let config = loadConfig();
 let result = null;
 let error = null;
 let locks = { spirits: [] };
+let preferenceMessage = null;
 const openSections = new Set(["expansions", "difficulty"]);
 
-function loadConfig() {
+function safeStorage() {
   try {
+    return window.localStorage;
+  } catch {
+    return { getItem: () => null, setItem: () => { throw new Error("storage unavailable"); } };
+  }
+}
+
+function loadConfig() {
+  if (store.defaultName) {
+    activeName = store.defaultName;
+    return loadPreference(store, store.defaultName);
+  }
+  try {
+    const remembered = localStorage.getItem(ACTIVE_KEY);
+    if (remembered && store.preferences[remembered]) activeName = remembered;
     return mergeConfig(JSON.parse(localStorage.getItem(STORAGE_KEY)));
   } catch {
     return defaultConfig();
@@ -28,6 +50,8 @@ function loadConfig() {
 function saveConfig() {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+    if (activeName) localStorage.setItem(ACTIVE_KEY, activeName);
+    else localStorage.removeItem(ACTIVE_KEY);
   } catch {}
 }
 
@@ -54,6 +78,123 @@ const fmt = (n) => (Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/0$/,
 function changed({ rerender = false } = {}) {
   saveConfig();
   if (rerender) renderSettings();
+  renderPreferences();
+}
+
+const hasUnsavedChanges = () => !!activeName && !sameConfig(config, store.preferences[activeName]);
+
+function commitStore(next, message) {
+  if (!writeStore(safeStorage(), next)) {
+    preferenceMessage = { error: true, text: "Your browser does not allow saving here (private window or blocked storage)." };
+  } else {
+    store = next;
+    preferenceMessage = message ? { error: false, text: message } : null;
+  }
+  saveConfig();
+  renderPreferences();
+}
+
+function guard(action) {
+  try {
+    action();
+  } catch (e) {
+    preferenceMessage = { error: true, text: e.message };
+    renderPreferences();
+  }
+}
+
+function switchTo(name) {
+  if (hasUnsavedChanges() && !confirm(`Discard the unsaved changes to "${activeName}"?`)) {
+    renderPreferences();
+    return;
+  }
+  activeName = name || null;
+  if (name) config = loadPreference(store, name);
+  preferenceMessage = name ? { error: false, text: `Loaded "${name}".` } : null;
+  saveConfig();
+  renderSettings();
+  renderPreferences();
+}
+
+function saveAsNew(input) {
+  guard(() => {
+    const name = input.value.trim();
+    if (!name) throw new Error("Type a name for the preference.");
+    if (store.preferences[name] && !confirm(`Replace the preference "${name}"?`)) return;
+    const next = savePreference(store, name, config);
+    activeName = name;
+    input.value = "";
+    commitStore(next, `Saved "${name}".`);
+  });
+}
+
+function preferencesPanel() {
+  const names = preferenceNames(store);
+  const isDefault = activeName && store.defaultName === activeName;
+  const unsaved = hasUnsavedChanges();
+  const nameInput = h("input", {
+    type: "text", placeholder: "Name, e.g. Solo hard", "aria-label": "New preference name", class: "text",
+    onkeydown: (e) => { if (e.key === "Enter") saveAsNew(e.currentTarget); },
+  });
+
+  return h("div", { class: "card prefs" },
+    h("div", { class: "prefs-head" },
+      h("strong", {}, "Preferences"),
+      h("span", { class: "muted" },
+        activeName ? [`Active: ${activeName}`, isDefault && " (default)", unsaved && " · unsaved changes"]
+          : "No preference active")),
+    h("div", { class: "inline" },
+      h("select", { "aria-label": "Load a preference", onchange: (e) => switchTo(e.target.value) },
+        h("option", { value: "", selected: !activeName }, names.length ? "— No preference —" : "— No saved preferences —"),
+        names.map((n) => h("option", { value: n, selected: n === activeName }, n === store.defaultName ? `★ ${n}` : n))),
+      h("button", {
+        type: "button", disabled: !activeName || !unsaved,
+        onclick: () => guard(() => commitStore(savePreference(store, activeName, config), `Saved "${activeName}".`)),
+      }, "Save"),
+      h("button", {
+        type: "button", disabled: !activeName,
+        onclick: () => guard(() => commitStore(
+          setDefaultPreference(store, isDefault ? null : activeName),
+          isDefault ? "No default preference." : `"${activeName}" opens by default.`,
+        )),
+      }, isDefault ? "Remove default" : "Set as default"),
+      h("button", {
+        type: "button", disabled: !activeName,
+        onclick: () => guard(() => {
+          const to = prompt("New name", activeName);
+          if (to === null || to.trim() === activeName) return;
+          const next = renamePreference(store, activeName, to);
+          activeName = to.trim();
+          commitStore(next, `Renamed to "${activeName}".`);
+        }),
+      }, "Rename"),
+      h("button", {
+        type: "button", class: "danger", disabled: !activeName,
+        onclick: () => {
+          if (!confirm(`Delete the preference "${activeName}"?`)) return;
+          const name = activeName;
+          activeName = null;
+          commitStore(deletePreference(store, name), `Deleted "${name}".`);
+        },
+      }, "Delete")),
+    h("div", { class: "inline", style: "margin-top:8px" },
+      nameInput,
+      h("button", { type: "button", onclick: () => saveAsNew(nameInput) }, "Save current settings as new")),
+    preferenceMessage && h("div", { class: preferenceMessage.error ? "error" : "muted", style: "margin-top:8px" }, preferenceMessage.text),
+    h("p", { class: "muted", style: "margin-bottom:0" },
+      "A preference stores all the settings below. The default preference (★) loads when the page opens."));
+}
+
+function renderPreferences() {
+  const root = document.getElementById("preferences");
+  const focused = document.activeElement;
+  const typing = focused?.closest?.("#preferences") && focused.tagName === "INPUT" ? focused.value : null;
+  root.replaceChildren(preferencesPanel());
+  if (typing !== null) {
+    const input = root.querySelector("input.text");
+    input.value = typing;
+    input.focus();
+  }
 }
 
 
@@ -149,7 +290,8 @@ function renderResult() {
   rows.push(h("div", { class: "row" },
     h("span", { class: "label" }, "Difficulty"),
     h("span", { class: "value difficulty" }, d.min === d.max ? fmt(d.min) : `${fmt(d.min)} – ${fmt(d.max)}`,
-      result.support && h("span", { class: "tag" }, "higher + 50–75% of lower adversary")),
+      result.support && h("span", { class: "tag" }, "higher + 50–75% of lower adversary"),
+      (result.island?.parts ?? []).map((p) => h("span", { class: "tag" }, `${p.label} ${p.value > 0 ? "+" : ""}${fmt(p.value)}`))),
     h("span")));
 
   const urls = launchUrls(result, config);
@@ -250,9 +392,38 @@ function difficultySection() {
       "from", numberInput(config.difficulty.min, -1, 30, (n) => { config.difficulty.min = n; changed(); }),
       "to", numberInput(config.difficulty.max, -1, 30, (n) => { config.difficulty.max = n; changed(); })),
     h("p", { class: "muted" },
-      "Difficulty = adversary difficulty at its level + scenario difficulty. With a supporting adversary: ",
+      "Difficulty = adversary difficulty at its level + scenario difficulty + island modifiers. With a supporting adversary: ",
       "the higher adversary difficulty + 50–75% of the lower one (Nature Incarnate rule). ",
-      "The randomizer adapts adversary levels, the supporting adversary and the scenario to hit the range."));
+      "The randomizer adapts adversary levels, the supporting adversary and the scenario to hit the range."),
+    islandModifiers());
+}
+
+function modifierInput(label, value, onChange) {
+  return h("label", { class: "check" },
+    numberInput(value, -10, 20, onChange, { step: "0.5", "aria-label": `${label} difficulty modifier` }),
+    h("span", {}, label));
+}
+
+function islandModifiers() {
+  const mods = config.islandDifficulty;
+  const defaults = defaultConfig().islandDifficulty;
+  const isDefault = () => JSON.stringify(config.islandDifficulty) === JSON.stringify(defaults);
+  const reset = h("button", {
+    type: "button", disabled: isDefault(),
+    onclick: () => { config.islandDifficulty = defaults; changed({ rerender: true }); },
+  }, "Reset modifiers to default");
+  const update = (apply) => (n) => {
+    apply(n);
+    reset.disabled = isDefault();
+    changed();
+  };
+  return h("div", { class: "field" },
+    h("div", { class: "inline" }, h("span", { class: "muted" }, "Island difficulty modifiers"), reset),
+    h("div", { class: "grid" },
+      modifierInput("Thematic boards", mods.thematic, update((n) => { mods.thematic = n; })),
+      modifierInput("Extra board", mods.extraBoard, update((n) => { mods.extraBoard = n; })),
+      LAYOUTS.filter((l) => l.id !== "Standard").map((l) =>
+        modifierInput(`${l.name} layout`, mods.layouts[l.id] ?? 0, update((n) => { mods.layouts[l.id] = n; })))));
 }
 
 function adversariesSection() {
@@ -356,4 +527,5 @@ function renderSettings() {
 
 document.getElementById("roll").addEventListener("click", doRoll);
 renderSettings();
+renderPreferences();
 renderResult();

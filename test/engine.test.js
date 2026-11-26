@@ -120,3 +120,36 @@ test("standard layout is left to the game", () => {
   assert.equal(layoutString("Standard", ["A", "B"]), null);
   assert.equal(layoutString("Archipelago", ["A", "B"]), "A3:B3");
 });
+
+test("island modifiers count toward the difficulty range", () => {
+  const config = defaultConfig();
+  config.layouts = { Standard: false, Archipelago: true };
+  config.players = { min: 2, max: 2 };
+  config.extraBoardChance = 50;
+  config.difficulty = { enabled: true, min: 2, max: 4 };
+  for (let i = 0; i < 200; i++) {
+    const r = roll(config, seeded(i));
+    const expected = 1 + (r.extraBoard ? 4 : 0);
+    assert.equal(r.island.total, expected);
+    assert.ok(r.difficulty.min >= r.island.total);
+    assert.ok(r.difficulty.max >= 2 && r.difficulty.min <= 4);
+    assert.equal(r.extraBoard, false);
+  }
+});
+
+test("thematic boards ignore the layout modifier", () => {
+  const config = defaultConfig();
+  config.thematicChance = 100;
+  config.layouts = { Standard: false, Archipelago: true };
+  config.difficulty.enabled = false;
+  const r = roll(config, seeded(5));
+  assert.equal(r.thematic, true);
+  assert.deepEqual(r.island.parts, [{ label: "Thematic boards", value: 1 }]);
+});
+
+test("old saved configs get the island modifiers", () => {
+  const config = mergeConfig({ players: { min: 1, max: 1 }, islandDifficulty: { extraBoard: 3 } });
+  assert.equal(config.islandDifficulty.extraBoard, 3);
+  assert.equal(config.islandDifficulty.thematic, 1);
+  assert.equal(config.islandDifficulty.layouts.Archipelago, 1);
+});

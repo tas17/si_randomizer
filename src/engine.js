@@ -4,6 +4,7 @@ import {
 
 export const MAX_PLAYERS = 4;
 export const SUPPORT_SHARE = { min: 0.5, max: 0.75 };
+const MAP_ATTEMPTS = 20;
 
 export class RollError extends Error {}
 
@@ -26,6 +27,11 @@ export function defaultConfig() {
     scenarioChance: 30,
     scenarios: Object.fromEntries(SCENARIOS.map((s) => [s.id, true])),
     difficulty: { enabled: true, min: 3, max: 6 },
+    islandDifficulty: {
+      thematic: 1,
+      extraBoard: 4,
+      layouts: Object.fromEntries(LAYOUTS.map((l) => [l.id, l.id === "Archipelago" ? 1 : 0])),
+    },
     events: true,
     practiceModes: Object.fromEntries(PRACTICE_MODES.map((p) => [p.id, false])),
   };
@@ -38,6 +44,11 @@ export function mergeConfig(saved) {
   for (const key of ["owned", "complexities", "layouts", "scenarios", "practiceModes", "players", "difficulty"]) {
     out[key] = { ...base[key], ...(saved[key] ?? {}) };
   }
+  out.islandDifficulty = {
+    ...base.islandDifficulty,
+    ...(saved.islandDifficulty ?? {}),
+    layouts: { ...base.islandDifficulty.layouts, ...(saved.islandDifficulty?.layouts ?? {}) },
+  };
   out.adversaries = Object.fromEntries(
     ADVERSARIES.map((a) => [a.id, { ...base.adversaries[a.id], ...(saved.adversaries?.[a.id] ?? {}) }]),
   );
@@ -160,10 +171,20 @@ export function combinedAdversaryDifficulty(adv, support) {
   return { min: high + low * SUPPORT_SHARE.min, max: high + low * SUPPORT_SHARE.max };
 }
 
-export function totalDifficulty(adversary, support, scenarioId) {
+export function totalDifficulty(adversary, support, scenarioId, island = 0) {
   const base = combinedAdversaryDifficulty(adversary, support);
   const scenario = scenarioId ? scenarioById(scenarioId).difficulty : 0;
-  return { min: base.min + scenario, max: base.max + scenario };
+  return { min: base.min + scenario + island, max: base.max + scenario + island };
+}
+
+export function islandDifficulty(config, map) {
+  const mods = config.islandDifficulty;
+  const parts = [];
+  if (map.thematic) parts.push({ label: "Thematic boards", value: mods.thematic });
+  else if (map.layout) parts.push({ label: `${LAYOUTS.find((l) => l.id === map.layout)?.name ?? map.layout} layout`, value: mods.layouts[map.layout] ?? 0 });
+  if (map.extraBoard) parts.push({ label: "Extra board", value: mods.extraBoard });
+  const nonZero = parts.filter((p) => p.value);
+  return { total: nonZero.reduce((sum, p) => sum + p.value, 0), parts: nonZero };
 }
 
 function levelOptions(config, adversaryIds) {
@@ -188,7 +209,7 @@ function pickHierarchically(rng, tuples, keys) {
   return pick(rng, rest);
 }
 
-function rollOpposition(config, rng, previous, locks) {
+function rollOpposition(config, rng, previous, locks, island) {
   const warnings = [];
   const ownedAdversaries = ADVERSARIES.filter((a) => owns(config, a.exp)).map((a) => a.id);
   const ownedScenarios = SCENARIOS.filter((s) => owns(config, s.exp) && config.scenarios[s.id]).map((s) => s.id);
@@ -211,7 +232,7 @@ function rollOpposition(config, rng, previous, locks) {
         if (support && (!adversary || support.id === adversary.id)) continue;
         for (const scenario of scenarios) {
           if (useScenario && !scenario) continue;
-          const difficulty = totalDifficulty(adversary, support, scenario);
+          const difficulty = totalDifficulty(adversary, support, scenario, island);
           if (config.difficulty.enabled
             && (difficulty.max < config.difficulty.min || difficulty.min > config.difficulty.max)) continue;
           tuples.push({ adversary, support, scenario, difficulty });
@@ -249,10 +270,21 @@ function rollOpposition(config, rng, previous, locks) {
 
 export function roll(config, rng = Math.random, previous = null, locks = {}) {
   const spirits = rollSpirits(config, rng, previous, locks);
-  const map = locks.map && previous
-    ? { extraBoard: previous.extraBoard, thematic: previous.thematic, boards: previous.boards, layout: previous.layout, warnings: [] }
-    : rollMap(config, rng, spirits.length);
-  const opposition = rollOpposition(config, rng, previous, locks);
+  const mapLocked = !!(locks.map && previous);
+  let map;
+  let island;
+  let opposition;
+  for (let attempt = 0; !opposition; attempt++) {
+    map = mapLocked
+      ? { extraBoard: previous.extraBoard, thematic: previous.thematic, boards: previous.boards, layout: previous.layout, warnings: [] }
+      : rollMap(config, rng, spirits.length);
+    island = islandDifficulty(config, map);
+    try {
+      opposition = rollOpposition(config, rng, previous, locks, island.total);
+    } catch (e) {
+      if (!(e instanceof RollError) || mapLocked || island.total === 0 || attempt >= MAP_ATTEMPTS) throw e;
+    }
+  }
   return {
     spirits,
     extraBoard: map.extraBoard,
@@ -263,6 +295,7 @@ export function roll(config, rng = Math.random, previous = null, locks = {}) {
     support: opposition.support,
     scenario: opposition.scenario,
     difficulty: opposition.difficulty,
+    island,
     warnings: [...map.warnings, ...opposition.warnings],
   };
 }
