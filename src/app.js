@@ -5,7 +5,7 @@ import {
 import {
   adversaryById, availableAspects, defaultConfig, mergeConfig, roll, RollError, scenarioById, spiritById,
 } from "./engine.js";
-import { adversaryIcon, scenarioIcon, spiritIcon } from "./icons.js";
+import { SPIRIT_FOCUS, adversaryIcon, focusBox, scenarioIcon, spiritIcon } from "./icons.js";
 import { launchUrls } from "./launchUrl.js";
 import { openPreferenceStore } from "./preferenceStore.js";
 import {
@@ -13,6 +13,7 @@ import {
   setDefaultPreference,
 } from "./preferences.js";
 
+const SPIRIT_ICON_SIZE = 40;
 const STORAGE_KEY = "si-randomizer-config-v1";
 const ACTIVE_KEY = "si-randomizer-active-preference-v1";
 const STATUS_CYCLE = { allow: "force", force: "ban", ban: "allow" };
@@ -244,8 +245,17 @@ function icon(kind, item, svgMarkup) {
     wrap.innerHTML = svgMarkup;
     return wrap;
   }
+  const focus = kind === "spirits" ? SPIRIT_FOCUS[item.id] : null;
   wrap.append(h("img", {
-    class: "photo", src, alt: item.name, title: item.name,
+    class: focus ? "photo focused" : "photo", src, alt: item.name, title: item.name,
+    onload: focus && ((e) => {
+      const img = e.currentTarget;
+      const size = wrap.clientWidth || SPIRIT_ICON_SIZE;
+      const box = focusBox(img.naturalWidth, img.naturalHeight, size, focus);
+      Object.assign(img.style, {
+        width: `${box.width}px`, height: `${box.height}px`, left: `${box.left}px`, top: `${box.top}px`, visibility: "visible",
+      });
+    }),
     onerror: () => {
       missingImages.add(src);
       wrap.innerHTML = svgMarkup;

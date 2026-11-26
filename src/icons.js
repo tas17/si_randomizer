@@ -109,3 +109,56 @@ export function scenarioIcon(scenario) {
   return svg(scenario.name,
     `<rect x="5.5" y="5.5" width="21" height="21" rx="3" transform="rotate(45 16 16)" fill="${fill}"/>${label(abbr, fill)}`);
 }
+
+export const SPIRIT_FOCUS = {
+  RiverSurgesInSunlight: [27, 32, 2],
+  ShadowsFlickerLikeFlame: [42, 30, 2],
+  LightningsSwiftStrike: [42, 25, 1.6],
+  VitalStrengthOfTheEarth: [30, 25, 2.2],
+  ASpreadOfRampantGreen: [25, 25, 1.8],
+  Thunderspeaker: [33, 28, 2.5],
+  BringerOfDreamsAndNightmares: [50, 17, 2.4],
+  OceansHungryGrasp: [20, 30, 1.5],
+  SharpFangsBehindTheLeaves: [25, 52, 2],
+  KeeperOfTheForbiddenWilds: [25, 22, 2],
+  HeartOfTheWildfire: [37, 25, 2.2],
+  SerpentSlumberingBeneathTheIsland: [20, 72, 1.8],
+  DownpourDrenchesTheWorld: [23, 20, 2.2],
+  FinderOfPathsUnseen: [48, 30, 2.2],
+  LureOfTheDeepWilderness: [28, 45, 1.8],
+  ManyMindsMoveAsOne: [58, 38, 1.5],
+  ShiftingMemoryOfAges: [15, 20, 2],
+  StonesUnyieldingDefiance: [40, 38, 1.8],
+  VolcanoLoomingHigh: [48, 24, 2.4],
+  GrinningTricksterStirsUpTrouble: [45, 45, 1.6],
+  ShroudOfSilentMist: [30, 35, 2],
+  VengeanceAsABurningPlague: [18, 38, 2],
+  FracturedDaysSplitTheSky: [27, 35, 1.4],
+  StarlightSeeksItsForm: [33, 20, 2],
+  DevouringTeethLurkUnderfoot: [40, 25, 2],
+  EyesWatchFromTheTrees: [45, 40, 1.8],
+  FathomlessMudOfTheSwamp: [18, 30, 2],
+  RisingHeatOfStoneAndSand: [22, 30, 2.2],
+  SunBrightWhirlwind: [30, 35, 1.5],
+  EmberEyedBehemoth: [40, 45, 1.8],
+  HearthVigil: [18, 30, 2],
+  ToweringRootsOfTheJungle: [40, 30, 1.6],
+  BreathOfDarknessDownYourSpine: [45, 35, 1.4],
+  RelentlessGazeOfTheSun: [18, 30, 2.2],
+  WanderingVoiceKeensDelirium: [32, 35, 1.6],
+  WoundedWatersBleeding: [45, 25, 1.8],
+  DancesUpEarthquakes: [20, 25, 2],
+};
+
+export function focusBox(naturalWidth, naturalHeight, size, [x, y, zoom] = [50, 50, 1]) {
+  const height = size * Math.max(1, zoom);
+  const width = Math.max(size, height * (naturalWidth / naturalHeight));
+  const scaledHeight = width === size ? size * (naturalHeight / naturalWidth) : height;
+  const clamp = (value, min) => Math.min(0, Math.max(min, value));
+  return {
+    width,
+    height: scaledHeight,
+    left: clamp(size / 2 - (x / 100) * width, size - width),
+    top: clamp(size / 2 - (y / 100) * scaledHeight, size - scaledHeight),
+  };
+}

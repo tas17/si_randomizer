@@ -163,3 +163,5 @@ th { font-weight: 600; color: var(--muted); font-size: 0.85rem; }
 .icon-wrap.spirits .photo { width: 40px; height: 40px; border-radius: 50%; }
 .icon-wrap.adversaries .photo { width: 46px; height: 30px; border-radius: 4px; }
 .icon-wrap.scenarios .photo { width: 40px; height: 40px; border-radius: 8px; }
+.icon-wrap.spirits:has(.focused) { position: relative; width: 40px; height: 40px; border-radius: 50%; overflow: hidden; background: var(--chip); box-shadow: 0 1px 2px rgb(0 0 0 / 0.3); }
+.icon-wrap.spirits .photo.focused { position: absolute; max-width: none; border-radius: 0; box-shadow: none; visibility: hidden; }
